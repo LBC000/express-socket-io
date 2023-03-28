@@ -1,0 +1,21 @@
+{
+  "name": "express-socket-io",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon app.js",
+    "start": "node app.js",
+    "pm2": "pm2 start app.js --name express-socket-io"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pouchdb-find": "^8.0.1",
+    "pouchdb-node": "^8.0.1",
+    "socket.io": "^4.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.21"
+  }
+}
