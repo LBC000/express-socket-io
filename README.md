@@ -14,7 +14,7 @@ npm i
 2. 使用方需提供一个验证接口，将token传递给该接口进行验证。验证接口需返回以下两个字段： user_name：res.data.user_name user_id: res.data.user_id
 推送数据
 
-3. 调用 http://localhost:9989/api/v1/emit 接口
+3. 调用 http://localhost:9989/api/v1/emit/authSocket 接口
   - type类型包括：user（推送给个人），broadcast（广播，所有人都能收到），room（房间）
 ```
 {

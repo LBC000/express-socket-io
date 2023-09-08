@@ -44,6 +44,19 @@
 
   <script>
     // 连接
+    const socket = io("http://localhost:9988/auth_socket", {
+      query: {
+        token: "textToken-2",
+      },
+    });
+
+    // 接收数据
+    socket.on("auth_socket", function (data) {
+      console.log(data, "接收到数据了");
+      socket.emit("my other event", { my: "data" });
+    });
+
+    // 连接
     $("#connect-btn").click(connectFn);
 
     // 提交
@@ -62,20 +75,7 @@
       console.log(inputValue, msgType, "值111");
     });
 
-    function connectFn() {
-      // 连接
-      const socket = io.connect("http://localhost:9988/auth_socket", {
-        query: {
-          token: "textToken-2",
-        },
-      });
-
-      // 接收数据
-      socket.on("auth_socket", function (data) {
-        console.log(data, "接收到数据了");
-        socket.emit("my other event", { my: "data" });
-      });
-    }
+    function connectFn() {}
 
     // console.log(socket, '测试')
   </script>

@@ -89,7 +89,7 @@ pouchDB
     console.log(err, "查全部-err");
   });
 
-// 需要验证的频道
+// 公共频道
 const auth_socket = io
   .of("/auth_socket")
   .use((socket, next) => {
@@ -133,24 +133,31 @@ const auth_socket = io
 
             next();
           } else {
-            return next(new Error("Authentication error"));
+            next();
+            // return next(new Error("Authentication error"));
           }
 
           // console.log(res, "验证返回了");
         })
         .catch((err) => {
+          next();
           console.log(err, "验证报错了");
-          return next(new Error("Authentication error"));
+          // return next(new Error("Authentication error"));
         });
     } else {
       console.log("没有token");
-      next(new Error("Authentication error"));
+      next();
+      // next(new Error("Authentication error"));
     }
   })
   .on("connection", (socket) => {
     console.log("auth_socket 链接了");
 
-    socket.emit("auth_socket", "链接了- 给客户端发数据");
+    const res = formatData({
+      code: 209,
+      msg: "connected - this is a test message",
+    });
+    socket.emit("auth_socket", res);
 
     // 监听断开连接
     socket.on("disconnect", (reason) => {
@@ -162,7 +169,10 @@ const auth_socket = io
           },
         })
         .then((res) => {
-          pouchDB.remove(res.docs[0]);
+          if (res.docs[0]) {
+            pouchDB.remove(res.docs[0]);
+          }
+
           console.log(res, res.docs[0], "监听断开连接11");
         });
 
@@ -176,15 +186,20 @@ const auth_socket = io
 // 推送消息
 app.post(`${prefix_api}/emit`, (req, res) => {
   const { type, userIds, data, actionType, roomNameArr } = req.body;
-  console.log(type, userIds, data, "接收的参数");
+  console.log(type, userIds, data, req.body, "接收的参数");
 
   if (type == "broadcast") {
     // 广播所有链接的客户端
-    auth_socket.emit("auth_socket", {
-      data: data,
-      type: type,
-      actionType: actionType,
+
+    const res_broadcast = formatData({
+      data: {
+        data: data,
+        type: type,
+        actionType: actionType,
+      },
     });
+
+    auth_socket.emit("auth_socket", res_broadcast);
   } else if (type == "user") {
     // 单个发送消息
     for (let j = 0; j < userIds.length; j++) {
@@ -202,13 +217,17 @@ app.post(`${prefix_api}/emit`, (req, res) => {
             const element = res.docs[i];
 
             if (element) {
-              auth_socket.to(element.socket_id).emit("auth_socket", {
-                data: data,
-                type: type,
-                actionType: actionType,
-                userId: element.user_id,
-                socketId: element.socket_id,
+              const res_user = formatData({
+                data: {
+                  data: data,
+                  type: type,
+                  actionType: actionType,
+                  userId: element.user_id,
+                  socketId: element.socket_id,
+                },
               });
+
+              auth_socket.to(element.socket_id).emit("auth_socket", res_user);
             }
           }
           console.log(res.docs, "对某个用户发信息 - 触发");
@@ -217,40 +236,51 @@ app.post(`${prefix_api}/emit`, (req, res) => {
   } else if (type == "room") {
     // console.log(type, roomNameArr, "房间发送消息");
 
-    auth_socket.to(roomNameArr).emit("auth_socket", {
-      data: data,
-      type: type,
-      actionType: actionType,
+    const res_room = formatData({
+      data: {
+        data: data,
+        type: type,
+        actionType: actionType,
+      },
     });
+
+    auth_socket.to(roomNameArr).emit("auth_socket", res_room);
   }
 
-  res.send({
-    code: 200,
-    msg: "ok",
-  });
+  res.send(formatData());
 });
 
 // 把用户添加到房间
 app.post(`${prefix_api}/socketsJoinOrLeaveRoom`, (req, res) => {
   const { userIds = [], roomName, type } = req.body;
 
-  if (userIds.length == 0)
-    return res.send({
+  let resData = {};
+  if (userIds.length == 0) {
+    resData = formatData({
       code: 400,
       msg: "userIds 不能为空",
     });
 
-  if (!roomName)
-    return res.send({
+    return res.send(resData);
+  }
+
+  if (!roomName) {
+    resData = formatData({
       code: 400,
       msg: "roomName 不能为空",
     });
 
-  if (!type)
-    return res.send({
+    return res.send();
+  }
+
+  if (!type) {
+    resData = formatData({
       code: 400,
       msg: "type 不能为空",
     });
+
+    res.send(resData);
+  }
 
   // 加入房间
   for (let j = 0; j < userIds.length; j++) {
@@ -318,10 +348,7 @@ app.post(`${prefix_api}/socketsJoinOrLeaveRoom`, (req, res) => {
       });
   }
 
-  res.send({
-    code: 200,
-    msg: "ok",
-  });
+  res.send(formatData());
 });
 
 // 获取在线人数
@@ -333,9 +360,11 @@ app.get(`${prefix_api}/getOnLineCount`, (req, res) => {
       },
     })
     .then((docData) => {
-      res.send({
+      let data = formatData({
         data: { count: docData.docs.length },
       });
+
+      res.send(data);
     });
 });
 
@@ -371,6 +400,17 @@ function startCheck(token) {
       // });
     }, 500);
   });
+}
+
+function formatData(opt = {}) {
+  const { data = null, msg = "ok", code = 200 } = opt;
+
+  const formattedData = {
+    data: data,
+    msg: msg,
+    code: code,
+  };
+  return formattedData;
 }
 
 // 公共函数结束

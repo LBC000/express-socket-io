@@ -30,6 +30,11 @@
         </div>
       </fieldset>
 
+      <div>
+        用户id
+        <input type="text" id="user-id" />
+      </div>
+
       <input id="input" />
       <button id="submit">发送消息</button>
     </div>
@@ -46,25 +51,58 @@
   ></script>
 
   <script>
+    const socket = io("http://localhost:9988/auth_socket", {
+      query: {
+        token: "textToken-1",
+      },
+    });
+
+    // 接收数据
+    socket.on("auth_socket", function (res) {
+      // $("#msg-data");
+      // $("#msg-data").html(`<span>${JSON.stringify(res.data)}</span>`);
+
+      console.log(res, "接收到数据了");
+      // socket.emit("my other event", { my: "data" });
+    });
+
     // 连接
     $("#connect-btn").click(connectFn);
 
     // 发送消息
     $("#submit").click(function () {
       var inputValue = $("#input").val();
+      var userId = $("#user-id").val();
 
       //获取当前选择的radio值
       var group = $("#msg-type-group");
       var msgType = group.find(":radio:checked").val();
 
       if (inputValue && msgType) {
-        sendMessage({
-          type: msgType,
-          actionType: "orderList",
-          data: {
-            inputValue: inputValue,
-          },
-        });
+        let opt = {};
+
+        if (msgType == "user" && !userId) {
+          return alert("用户id不能为空");
+        } else if (msgType == "user" && userId) {
+          opt = {
+            type: msgType,
+            userIds: ["textToken-2"],
+            actionType: "orderList",
+            data: {
+              inputValue: inputValue,
+            },
+          };
+        } else if (msgType == "broadcast") {
+          opt = {
+            type: msgType,
+            actionType: "orderList",
+            data: {
+              inputValue: inputValue,
+            },
+          };
+        }
+
+        sendMessage(opt);
       } else {
         alert("参数不能为空");
       }
@@ -78,7 +116,7 @@
       $.ajax({
         type: "post",
         data: JSON.stringify(opt),
-        url: "http://localhost:9989/api/v1/emit/authSocket",
+        url: "http://localhost:9989/api/v1/emit",
         contentType: "application/json",
 
         //接收数据
@@ -91,17 +129,7 @@
     // 连接
     function connectFn() {
       // 连接
-      const socket = io.connect("http://localhost:9988/auth_socket", {
-        query: {
-          token: "textToken-1",
-        },
-      });
-
-      // 接收数据
-      socket.on("auth_socket", function (data) {
-        console.log(data, "接收到数据了");
-        socket.emit("my other event", { my: "data" });
-      });
+      // socket.connect();
     }
 
     // console.log(socket, '测试')
