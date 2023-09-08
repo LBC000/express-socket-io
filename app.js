@@ -7,6 +7,10 @@ const app = express();
 // 会自动加入req.body属性，这个属性中就包含了post请求所传入的参数
 app.use(express.json());
 
+// 配置 cors 这个中间件
+const cors = require("cors");
+app.use(cors());
+
 const PouchDB = require("pouchdb-node");
 
 // 注入插件
@@ -54,7 +58,7 @@ const io = require("socket.io")(server, {
 });
 
 // 清除console
-console.log = function () {};
+// console.log = function () {};
 
 /** 初始化结束 */
 
@@ -79,14 +83,15 @@ pouchDB
 
     pouchDB.bulkDocs(res.docs);
 
-    console.log(res, "查全部");
+    // console.log(res, "查全部");
   })
   .catch((err) => {
-    console.log(err, "查全部");
+    console.log(err, "查全部-err");
   });
 
-const common_socket = io
-  .of("/common_socket")
+// 需要验证的频道
+const auth_socket = io
+  .of("/auth_socket")
   .use((socket, next) => {
     if (socket.handshake?.query?.token) {
       let token = socket.handshake?.query?.token;
@@ -99,7 +104,6 @@ const common_socket = io
           if (res.status == "success") {
             let doc = {
               doc_name: "socket_table",
-              user_name: res.data.user_name,
               user_id: res.data.user_id,
               socket_id: socket.id,
             };
@@ -118,20 +122,21 @@ const common_socket = io
               .then((res) => {
                 let element = res.docs[0];
                 if (element) {
-                  common_socket.in(socket.id).socketsJoin(element.room_name);
+                  auth_socket.in(socket.id).socketsJoin(element.room_name);
                 }
 
                 // console.log(res.docs, "加入房间");
               });
 
-            console.log([doc], "验证成功");
+            // console.log([doc], "验证成功");
+            console.log("验证成功");
 
             next();
           } else {
             return next(new Error("Authentication error"));
           }
 
-          console.log(res, "验证返回了");
+          // console.log(res, "验证返回了");
         })
         .catch((err) => {
           console.log(err, "验证报错了");
@@ -143,9 +148,9 @@ const common_socket = io
     }
   })
   .on("connection", (socket) => {
-    console.log("common_socket 链接了");
+    console.log("auth_socket 链接了");
 
-    socket.emit("common_socket", "链接了- 给客户端发数据");
+    socket.emit("auth_socket", "链接了- 给客户端发数据");
 
     // 监听断开连接
     socket.on("disconnect", (reason) => {
@@ -161,11 +166,11 @@ const common_socket = io
           console.log(res, res.docs[0], "监听断开连接11");
         });
 
-      console.log(reason, socket.id, "common_socket 某个用户 断开链接了");
+      console.log(reason, socket.id, "auth_socket 某个用户 断开链接了");
     });
   })
   .on("disconnect", (socket) => {
-    console.log("common_socket 整体关闭了 断开链接了");
+    console.log("auth_socket 整体关闭了 断开链接了");
   });
 
 // 推送消息
@@ -175,7 +180,7 @@ app.post(`${prefix_api}/emit`, (req, res) => {
 
   if (type == "broadcast") {
     // 广播所有链接的客户端
-    common_socket.emit("common_socket", {
+    auth_socket.emit("auth_socket", {
       data: data,
       type: type,
       actionType: actionType,
@@ -197,7 +202,7 @@ app.post(`${prefix_api}/emit`, (req, res) => {
             const element = res.docs[i];
 
             if (element) {
-              common_socket.to(element.socket_id).emit("common_socket", {
+              auth_socket.to(element.socket_id).emit("auth_socket", {
                 data: data,
                 type: type,
                 actionType: actionType,
@@ -212,7 +217,7 @@ app.post(`${prefix_api}/emit`, (req, res) => {
   } else if (type == "room") {
     // console.log(type, roomNameArr, "房间发送消息");
 
-    common_socket.to(roomNameArr).emit("common_socket", {
+    auth_socket.to(roomNameArr).emit("auth_socket", {
       data: data,
       type: type,
       actionType: actionType,
@@ -301,10 +306,10 @@ app.post(`${prefix_api}/socketsJoinOrLeaveRoom`, (req, res) => {
             console.log(element, roomName, type, "房间2");
 
             if (type == "join") {
-              common_socket.in(element.socket_id).socketsJoin(roomName);
+              auth_socket.in(element.socket_id).socketsJoin(roomName);
             } else if (type == "leave") {
               // 退出
-              common_socket.in(element.socket_id).socketsLeave(roomName);
+              auth_socket.in(element.socket_id).socketsLeave(roomName);
             }
           }
         }
@@ -353,7 +358,6 @@ function startCheck(token) {
       resolve({
         status: "success",
         data: {
-          user_name: token,
           user_id: token,
         },
       });
@@ -362,7 +366,6 @@ function startCheck(token) {
       // reject({
       //   status: "fail",
       //   data: {
-      //     user_name: token,
       //     user_id: token,
       //   },
       // });

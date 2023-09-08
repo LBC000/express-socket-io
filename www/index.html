@@ -1,25 +1,108 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
   </head>
-  <body></body>
+  <body>
+    <h1>index.html</h1>
+
+    <button id="connect-btn">连接</button>
+    <div>
+      <fieldset id="msg-type-group">
+        <legend>信息类型:</legend>
+
+        <div>
+          <input type="radio" name="msg-type" value="broadcast" />
+          <label for="broadcast">广播</label>
+        </div>
+
+        <div>
+          <input type="radio" name="msg-type" value="user" />
+          <label for="user">单个用户</label>
+        </div>
+
+        <div>
+          <input type="radio" name="msg-type" value="room" />
+          <label for="room">房间/群聊/部分范围</label>
+        </div>
+      </fieldset>
+
+      <input id="input" />
+      <button id="submit">发送消息</button>
+    </div>
+
+    <div>收到的数据：<span id="msg-data">暂无</span></div>
+  </body>
+
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+    integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
 
   <script>
-    const socket = io.connect("http://localhost:9988/common_socket", {
-      query: {
-        token: "textToken-1",
-      },
+    // 连接
+    $("#connect-btn").click(connectFn);
+
+    // 发送消息
+    $("#submit").click(function () {
+      var inputValue = $("#input").val();
+
+      //获取当前选择的radio值
+      var group = $("#msg-type-group");
+      var msgType = group.find(":radio:checked").val();
+
+      if (inputValue && msgType) {
+        sendMessage({
+          type: msgType,
+          actionType: "orderList",
+          data: {
+            inputValue: inputValue,
+          },
+        });
+      } else {
+        alert("参数不能为空");
+      }
+
+      console.log(inputValue, msgType, "值111");
     });
 
-    socket.on("common_socket", function (data) {
-      console.log(data, "接收到数据了");
-      socket.emit("my other event", { my: "data" });
-    });
+    // 发送消息
+    function sendMessage(opt) {
+      //发送ajax请求
+      $.ajax({
+        type: "post",
+        data: JSON.stringify(opt),
+        url: "http://localhost:9989/api/v1/emit/authSocket",
+        contentType: "application/json",
+
+        //接收数据
+        success: function (res) {
+          console.log(res, "发送结果");
+        },
+      });
+    }
+
+    // 连接
+    function connectFn() {
+      // 连接
+      const socket = io.connect("http://localhost:9988/auth_socket", {
+        query: {
+          token: "textToken-1",
+        },
+      });
+
+      // 接收数据
+      socket.on("auth_socket", function (data) {
+        console.log(data, "接收到数据了");
+        socket.emit("my other event", { my: "data" });
+      });
+    }
 
     // console.log(socket, '测试')
   </script>
