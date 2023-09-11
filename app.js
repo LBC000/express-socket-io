@@ -1,4 +1,6 @@
 const express = require("express");
+const fetch = require("node-fetch");
+
 // const NeDB = require("nedb");
 
 /** 初始化开始 */
@@ -10,6 +12,8 @@ app.use(express.json());
 // 配置 cors 这个中间件
 const cors = require("cors");
 app.use(cors());
+
+const server = require("http").Server();
 
 const PouchDB = require("pouchdb-node");
 
@@ -44,7 +48,7 @@ pouchDB
 //   console.log(JSON.stringify(result), "列出索引");
 // });
 
-const server = require("http").Server();
+
 
 /**
  * 
@@ -96,8 +100,62 @@ const auth_socket = io
     if (socket.handshake?.query?.token) {
       let token = socket.handshake?.query?.token;
 
-      console.log(token, "测试");
+      console.log(token, "token-验证-1");
 
+      fetch("http://127.0.0.1:7001/api/socketIo/register/open", {
+        method: "post",
+        body: JSON.stringify({
+          token: token,
+        }),
+        headers: { "Content-Type": "application/json" },
+      })
+        .then((res) => res.json()) // expecting a json response
+        .then((json) => {
+          console.log("json数据", json.data, json.data.user_id);
+          let user_id_res = `t-${json.data.user_id}`;
+
+          if (json.code === 200 && user_id_res) {
+            const doc = {
+              doc_name: "socket_table",
+              user_id: user_id_res,
+              socket_id: socket.id,
+            };
+
+            console.log(doc, "保存用户id");
+            // // 验证成功保存 socket_id
+            pouchDB.bulkDocs([doc]);
+
+            // 加入房间
+            pouchDB
+              .find({
+                selector: {
+                  doc_name: "room_table",
+                  user_id: user_id_res,
+                },
+              })
+              .then((res) => {
+                let element = res.docs[0];
+                if (element) {
+                  auth_socket.in(socket.id).socketsJoin(element.room_name);
+                }
+
+                console.log(res.docs, element, "加入房间");
+              });
+
+            // console.log([doc], "验证成功");
+            console.log("验证成功");
+
+            next();
+          } else {
+            console.log("验证请求返回错误");
+          }
+          console.log(json, "验证结果");
+        })
+        .catch((err) => {
+          console.log(err, "验证错误");
+        });
+
+      return;
       // 模拟请求第三方验证 开始
       startCheck(token)
         .then((res) => {
@@ -201,6 +259,16 @@ app.post(`${prefix_api}/emit`, (req, res) => {
 
     auth_socket.emit("auth_socket", res_broadcast);
   } else if (type == "user") {
+    pouchDB
+      .find({
+        selector: {
+          doc_name: "socket_table",
+        },
+      })
+      .then((res) => {
+        console.log(res, "socket_table-全部数据");
+      });
+
     // 单个发送消息
     for (let j = 0; j < userIds.length; j++) {
       let user_id_item = userIds[j];
@@ -209,7 +277,7 @@ app.post(`${prefix_api}/emit`, (req, res) => {
         .find({
           selector: {
             doc_name: "socket_table",
-            user_id: user_id_item,
+            user_id: `t-${user_id_item}`,
           },
         })
         .then((res) => {

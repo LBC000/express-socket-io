@@ -53,7 +53,7 @@
   <script>
     const socket = io("http://localhost:9988/auth_socket", {
       query: {
-        token: "textToken-1",
+        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoyOCwiY3JlYXRlVGltZSI6IjIwMjMtMDktMDYgMTE6MDI6NTciLCJ1cGRhdGVUaW1lIjoiMjAyMy0wOS0wNiAxMTowMjo1NyIsImFjY291bnQiOiJjIiwicGhvbmUiOm51bGx9LCJpYXQiOjE2OTQxNjk3NjEsImV4cCI6MTY5NDI1NjE2MX0.0prPPJH7ia4equvg_rOMc3E4nUxmtRo944dFONbiUeA",
       },
     });
 
@@ -86,7 +86,7 @@
         } else if (msgType == "user" && userId) {
           opt = {
             type: msgType,
-            userIds: ["textToken-2"],
+            userIds: [userId],
             actionType: "orderList",
             data: {
               inputValue: inputValue,
