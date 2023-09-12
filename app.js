@@ -117,6 +117,13 @@ const startFn = async () => {
           .then((res) => res.json()) // expecting a json response
           .then((json) => {
             console.log("json数据", json.data, json.data.user_id);
+
+            let jsonData = json.data || {};
+
+            if (!jsonData.hasOwnProperty("user_id")) {
+              console.log('返回格式错误-无user_id字段');
+            }
+
             let user_id_res = `t-${json.data.user_id}`;
 
             if (json.code === 200 && user_id_res) {
