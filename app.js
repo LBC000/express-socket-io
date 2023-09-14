@@ -1,10 +1,13 @@
 const express = require("express");
 const fetch = require("node-fetch");
+const bodyParser = require("body-parser");
+const { celebrate, Joi, errors, Segments } = require("celebrate");
 
 // const NeDB = require("nedb");
 
 /** 初始化开始 */
 const app = express();
+app.use(bodyParser.json());
 
 // 会自动加入req.body属性，这个属性中就包含了post请求所传入的参数
 app.use(express.json());
@@ -121,7 +124,7 @@ const startFn = async () => {
             let jsonData = json.data || {};
 
             if (!jsonData.hasOwnProperty("user_id")) {
-              console.log('返回格式错误-无user_id字段');
+              console.log("返回格式错误-无user_id字段");
             }
 
             let user_id_res = `t-${json.data.user_id}`;
@@ -254,81 +257,96 @@ const startFn = async () => {
     });
 
   // 推送消息
-  app.post(`${prefix_api}/emit`, (req, res) => {
-    const { type, userIds, data, actionType, roomNameArr } = req.body;
-    console.log(type, userIds, data, req.body, "接收的参数");
+  app.post(
+    `${prefix_api}/emit`,
+    celebrate({
+      [Segments.BODY]: Joi.object().keys({
+        type: Joi.string().required(),
+        data: Joi.object().required(),
+        actionType: Joi.string().required(),
 
-    if (type == "broadcast") {
-      // 广播所有链接的客户端
+        userIds: Joi.array(),
+        roomNameArr: Joi.array(),
+      }),
+    }),
+    (req, res) => {
+      const { type, userIds, data, actionType, roomNameArr } = req.body;
+      console.log(type, userIds, data, req.body, "接收的参数");
 
-      const res_broadcast = formatData({
-        data: {
-          data: data,
-          type: type,
-          actionType: actionType,
-        },
-      });
+      if (type == "broadcast") {
+        // 广播所有链接的客户端
 
-      auth_socket.emit("auth_socket", res_broadcast);
-    } else if (type == "user") {
-      pouchDB
-        .find({
-          selector: {
-            doc_name: "socket_table",
+        const res_broadcast = formatData({
+          data: {
+            data: data,
+            type: type,
+            actionType: actionType,
           },
-        })
-        .then((res) => {
-          console.log(res, "socket_table-全部数据");
         });
 
-      // 单个发送消息
-      for (let j = 0; j < userIds.length; j++) {
-        let user_id_item = userIds[j];
-
+        auth_socket.emit("auth_socket", res_broadcast);
+      } else if (type == "user") {
         pouchDB
           .find({
             selector: {
               doc_name: "socket_table",
-              user_id: `t-${user_id_item}`,
             },
           })
           .then((res) => {
-            for (let i = 0; i < res.docs.length; i++) {
-              const element = res.docs[i];
-
-              if (element) {
-                const res_user = formatData({
-                  data: {
-                    data: data,
-                    type: type,
-                    actionType: actionType,
-                    userId: element.user_id,
-                    socketId: element.socket_id,
-                  },
-                });
-
-                auth_socket.to(element.socket_id).emit("auth_socket", res_user);
-              }
-            }
-            console.log(res.docs, "对某个用户发信息 - 触发");
+            console.log(res, "socket_table-全部数据");
           });
+
+        // 单个发送消息
+        for (let j = 0; j < userIds.length; j++) {
+          let user_id_item = userIds[j];
+
+          pouchDB
+            .find({
+              selector: {
+                doc_name: "socket_table",
+                user_id: `t-${user_id_item}`,
+              },
+            })
+            .then((res) => {
+              for (let i = 0; i < res.docs.length; i++) {
+                const element = res.docs[i];
+
+                if (element) {
+                  const res_user = formatData({
+                    data: {
+                      data: data,
+                      type: type,
+                      actionType: actionType,
+                      userId: element.user_id,
+                      socketId: element.socket_id,
+                    },
+                  });
+
+                  auth_socket
+                    .to(element.socket_id)
+                    .emit("auth_socket", res_user);
+                }
+              }
+              console.log(res.docs, "对某个用户发信息 - 触发");
+            });
+        }
+      } else if (type == "room") {
+        // console.log(type, roomNameArr, "房间发送消息");
+
+        const res_room = formatData({
+          data: {
+            data: data,
+            type: type,
+            actionType: actionType,
+          },
+        });
+
+        auth_socket.to(roomNameArr).emit("auth_socket", res_room);
       }
-    } else if (type == "room") {
-      // console.log(type, roomNameArr, "房间发送消息");
 
-      const res_room = formatData({
-        data: {
-          data: data,
-          type: type,
-          actionType: actionType,
-        },
-      });
-
-      auth_socket.to(roomNameArr).emit("auth_socket", res_room);
+      res.send(formatData());
     }
-
-    res.send(formatData());
-  });
+  );
 
   // 把用户添加到房间
   app.post(`${prefix_api}/socketsJoinOrLeaveRoom`, (req, res) => {
@@ -447,6 +465,8 @@ const startFn = async () => {
         res.send(data);
       });
   });
+
+  app.use(errors());
 
   // socket.io 服务
   server.listen(port_socket_io, () => {
