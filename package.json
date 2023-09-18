@@ -6,10 +6,13 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon app.js",
-    "start": "node app.js",
-    "pm2": "pm2 start app.js --name express-socket-io"
+    "node": "node app.js",
+    "pm2": "pm2 start app.js --name express-socket-io",
+    "pm2-r": "pm2 restart express-socket-io",
+    "pm2-cross-env": "  npm run build && cross-env NODE_ENV=production pm2 start ./bootstrap.js --name midway_app "
   },
   "dependencies": {
+    "body-parser": "^1.20.2",
     "celebrate": "^15.0.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
