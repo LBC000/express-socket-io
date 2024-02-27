@@ -53,17 +53,23 @@
   <script>
     const socket = io("http://localhost:9988/auth_socket", {
       query: {
-        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoyOCwiY3JlYXRlVGltZSI6IjIwMjMtMDktMDYgMTE6MDI6NTciLCJ1cGRhdGVUaW1lIjoiMjAyMy0wOS0wNiAxMTowMjo1NyIsImFjY291bnQiOiJjIiwicGhvbmUiOm51bGx9LCJpYXQiOjE2OTQ2NjMyODIsImV4cCI6MTY5NDc0OTY4Mn0.KRgAnl8v6Qj2Ofz8vO5YfWphj64cC_e_JBUXIqAm-v0",
+        token:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiaWF0IjoxNzA5MDIyODAzLCJleHAiOjE3MDk2Mjc2MDN9.y96WAsYutGxw3dzYn3y5R-RbDiM2IGf-NmsY8fpkbng",
       },
     });
 
-    // 接收数据
+    // 验证通过
     socket.on("auth_socket", function (res) {
-      // $("#msg-data");
-      // $("#msg-data").html(`<span>${JSON.stringify(res.data)}</span>`);
+      console.log(res, "验证通过");
+    });
 
+    // 接收数据
+    socket.on("receive", function (res) {
       console.log(res, "接收到数据了");
-      // socket.emit("my other event", { my: "data" });
+    });
+
+    socket.on("connect_error", () => {
+      console.log("连接错误");
     });
 
     // 连接

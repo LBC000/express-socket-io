@@ -5,6 +5,10 @@ const { celebrate, Joi, errors, Segments } = require("celebrate");
 
 // const NeDB = require("nedb");
 
+// 初始化变量
+// const verifyAutUrl = "http://127.0.0.1:7001/api/socketIo/register/open";
+const verifyAutUrl = "http://127.0.0.1:1337/api/custom-auth/justVerify";
+
 /** 初始化开始 */
 const app = express();
 app.use(bodyParser.json());
@@ -28,29 +32,7 @@ const startFn = async () => {
   const pouchDB = new PouchDB("pouchdb/my_database");
 
   // 设置索引
-  await pouchDB
-    .createIndex({
-      index: {
-        fields: [
-          // 文档名
-          "doc_name",
-
-          // socket_table
-          "user_id",
-          "socket_id",
-
-          // room_table
-          "room_name",
-        ],
-      },
-    })
-    .then((result) => {
-      console.log(result, "索引");
-      return result;
-    })
-    .catch((err) => {
-      return err;
-    });
+  await setDatabaseIndexes(pouchDB);
 
   // pouchDB.getIndexes().then((result) => {
   //   console.log(JSON.stringify(result), "列出索引");
@@ -59,7 +41,7 @@ const startFn = async () => {
   /**
  * 
  * cors: {
-    origin: ["http://localhost:5500", "http://127.0.0.1:5500"],
+    origin: ["http://127.0.0.1:5500", "http://127.0.0.1:5500"],
   },
   cors: true
  */
@@ -79,27 +61,7 @@ const startFn = async () => {
   /**配置结束 */
 
   // 重启时删除全部
-  await pouchDB
-    .find({
-      selector: {
-        doc_name: "socket_table",
-      },
-    })
-    .then((res) => {
-      for (let i = 0; i < res.docs.length; i++) {
-        const element = res.docs[i];
-        element._deleted = true;
-      }
-
-      pouchDB.bulkDocs(res.docs);
-
-      // console.log(res, "查全部");
-      return res;
-    })
-    .catch((err) => {
-      console.log(err, "查全部-err");
-      return err;
-    });
+  await deleteAllDocuments(pouchDB);
 
   // 公共频道
   const auth_socket = io
@@ -110,113 +72,7 @@ const startFn = async () => {
 
         console.log(token, "token-验证-1");
 
-        fetch("http://127.0.0.1:7001/api/socketIo/register/open", {
-          method: "post",
-          body: JSON.stringify({
-            token: token,
-          }),
-          headers: { "Content-Type": "application/json" },
-        })
-          .then((res) => res.json()) // expecting a json response
-          .then((json) => {
-            console.log("json数据", json.data, json.data.user_id);
-
-            let jsonData = json.data || {};
-
-            if (!jsonData.hasOwnProperty("user_id")) {
-              console.log("返回格式错误-无user_id字段");
-            }
-
-            let user_id_res = `t-${json.data.user_id}`;
-
-            if (json.code === 200 && user_id_res) {
-              const doc = {
-                doc_name: "socket_table",
-                user_id: user_id_res,
-                socket_id: socket.id,
-              };
-
-              console.log(doc, "保存用户id");
-              // // 验证成功保存 socket_id
-              pouchDB.bulkDocs([doc]);
-
-              // 加入房间
-              pouchDB
-                .find({
-                  selector: {
-                    doc_name: "room_table",
-                    user_id: user_id_res,
-                  },
-                })
-                .then((res) => {
-                  let element = res.docs[0];
-                  if (element) {
-                    auth_socket.in(socket.id).socketsJoin(element.room_name);
-                  }
-
-                  console.log(res.docs, element, "加入房间");
-                });
-
-              // console.log([doc], "验证成功");
-              console.log("验证成功");
-
-              next();
-            } else {
-              console.log("验证请求返回错误");
-            }
-            console.log(json, "验证结果");
-          })
-          .catch((err) => {
-            console.log(err, "验证错误");
-          });
-
-        return;
-        // 模拟请求第三方验证 开始
-        startCheck(token)
-          .then((res) => {
-            if (res.status == "success") {
-              let doc = {
-                doc_name: "socket_table",
-                user_id: res.data.user_id,
-                socket_id: socket.id,
-              };
-
-              // // 验证成功保存 socket_id
-              pouchDB.bulkDocs([doc]);
-
-              // 加入房间
-              pouchDB
-                .find({
-                  selector: {
-                    doc_name: "room_table",
-                    user_id: res.data.user_id,
-                  },
-                })
-                .then((res) => {
-                  let element = res.docs[0];
-                  if (element) {
-                    auth_socket.in(socket.id).socketsJoin(element.room_name);
-                  }
-
-                  // console.log(res.docs, "加入房间");
-                });
-
-              // console.log([doc], "验证成功");
-              console.log("验证成功");
-
-              next();
-            } else {
-              next();
-              // return next(new Error("Authentication error"));
-            }
-
-            // console.log(res, "验证返回了");
-          })
-          .catch((err) => {
-            next();
-            console.log(err, "验证报错了");
-            // return next(new Error("Authentication error"));
-          });
+        registerSocket({ token, socket, pouchDB, auth_socket, next });
       } else {
         console.log("没有token");
         next();
@@ -275,7 +131,6 @@ const startFn = async () => {
 
       if (type == "broadcast") {
         // 广播所有链接的客户端
-
         const res_broadcast = formatData({
           data: {
             data: data,
@@ -284,18 +139,8 @@ const startFn = async () => {
           },
         });
 
-        auth_socket.emit("auth_socket", res_broadcast);
+        auth_socket.emit("receive", res_broadcast);
       } else if (type == "user") {
-        pouchDB
-          .find({
-            selector: {
-              doc_name: "socket_table",
-            },
-          })
-          .then((res) => {
-            console.log(res, "socket_table-全部数据");
-          });
-
         // 单个发送消息
         for (let j = 0; j < userIds.length; j++) {
           let user_id_item = userIds[j];
@@ -322,9 +167,7 @@ const startFn = async () => {
                     },
                   });
 
-                  auth_socket
-                    .to(element.socket_id)
-                    .emit("auth_socket", res_user);
+                  auth_socket.to(element.socket_id).emit("receive", res_user);
                 }
               }
               console.log(res.docs, "对某个用户发信息 - 触发");
@@ -341,7 +184,7 @@ const startFn = async () => {
           },
         });
 
-        auth_socket.to(roomNameArr).emit("auth_socket", res_room);
+        auth_socket.to(roomNameArr).emit("receive", res_room);
       }
 
       res.send(formatData());
@@ -402,7 +245,6 @@ const startFn = async () => {
 
           if (element) {
             // 更新
-
             console.log(element, "更新1");
             pouchDB.put(element);
           } else {
@@ -470,12 +312,12 @@ const startFn = async () => {
 
   // socket.io 服务
   server.listen(port_socket_io, () => {
-    console.log(`socketIo port ${port_socket_io}, http://localhost:9988/`);
+    console.log(`socketIo port ${port_socket_io}, http://127.0.0.1:9988/`);
   });
 
   // express 服务
   app.listen(port_express, () => {
-    console.log(`express app listening, http://localhost:9989/`);
+    console.log(`express app listening, http://127.0.0.1:9989/`);
   });
 };
 
@@ -514,6 +356,129 @@ function formatData(opt = {}) {
     code: code,
   };
   return formattedData;
+}
+
+async function setDatabaseIndexes(pouchDB) {
+  try {
+    const result = await pouchDB.createIndex({
+      index: {
+        fields: [
+          // 文档名
+          "doc_name",
+
+          // socket_table
+          "user_id",
+          "socket_id",
+
+          // room_table
+          "room_name",
+        ],
+      },
+    });
+    console.log(result, "索引");
+    return result;
+  } catch (err) {
+    return err;
+  }
+}
+
+async function deleteAllDocuments(pouchDB) {
+  try {
+    const resData = await pouchDB
+      .find({
+        selector: {
+          doc_name: "socket_table",
+        },
+      })
+      .then((res) => {
+        for (let i = 0; i < res.docs.length; i++) {
+          const element = res.docs[i];
+          element._deleted = true;
+        }
+
+        pouchDB.bulkDocs(res.docs);
+
+        // console.log(res, "查全部");
+        return res;
+      });
+
+    console.log("删除全部文档成功");
+    return resData;
+  } catch (err) {
+    console.error("删除全部文档时出错：", err);
+    throw err;
+  }
+}
+
+function registerSocket({ token, socket, pouchDB, auth_socket, next }) {
+  fetch(verifyAutUrl, {
+    method: "post",
+
+    // body: JSON.stringify({
+    //   token: token,
+    // }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  })
+    .then((res) => res.json()) // expecting a json response
+    .then((json) => {
+      console.log("json数据", json);
+
+      let jsonData = json || {};
+
+      if (!jsonData.hasOwnProperty("user_id")) {
+        socket.emit("auth_socket", { msg: "Validation error" });
+        next(new Error("Authentication error"));
+        return console.log("返回格式错误-无user_id字段");
+      }
+
+      let user_id_res = `t-${json.user_id}`;
+
+      if (user_id_res) {
+        const doc = {
+          doc_name: "socket_table",
+          user_id: user_id_res,
+          socket_id: socket.id,
+        };
+
+        console.log(doc, "保存用户id");
+        // // 验证成功保存 socket_id
+        pouchDB.bulkDocs([doc]);
+
+        // 加入房间
+        pouchDB
+          .find({
+            selector: {
+              doc_name: "room_table",
+              user_id: user_id_res,
+            },
+          })
+          .then((res) => {
+            let element = res.docs[0];
+            if (element) {
+              auth_socket.in(socket.id).socketsJoin(element.room_name);
+            }
+
+            console.log(res.docs, element, "加入房间");
+          });
+
+        // console.log([doc], "验证成功");
+        console.log("验证成功");
+
+        next();
+      } else {
+        console.log("验证请求返回错误");
+      }
+      console.log(json, "验证结果");
+    })
+    .catch((err) => {
+      socket.emit("auth_socket", { msg: "Validation error" });
+      next(new Error("Authentication error"));
+
+      console.log(err, "验证错误");
+    });
 }
 
 // 公共函数结束

@@ -22,10 +22,18 @@
     // 连接
     const socket = io.connect("http://localhost:9988/auth_socket");
 
+    // 验证通过
+    socket.on("auth_socket", function (res) {
+      console.log(res, "验证通过");
+    });
+
     // 接收数据
-    socket.on("auth_socket", function (data) {
-      console.log(data, "接收到数据了");
-      socket.emit("my other event", { my: "data" });
+    socket.on("receive", function (res) {
+      // $("#msg-data");
+      // $("#msg-data").html(`<span>${JSON.stringify(res.data)}</span>`);
+
+      console.log(res, "接收到数据了");
+      // socket.emit("my other event", { my: "data" });
     });
 
     // 连接

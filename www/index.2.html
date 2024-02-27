@@ -50,10 +50,22 @@
       },
     });
 
+    // 验证通过
+    socket.on("auth_socket", function (res) {
+      console.log(res, "验证通过");
+    });
+
     // 接收数据
-    socket.on("auth_socket", function (data) {
-      console.log(data, "接收到数据了");
-      socket.emit("my other event", { my: "data" });
+    socket.on("receive", function (res) {
+      console.log(res, "接收到数据了");
+    });
+
+    socket.on("connect_error", (res) => {
+      console.log(res, "连接错误");
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("此事件在断开连接时触发");
     });
 
     // 连接
