@@ -142,9 +142,7 @@ const startFn = async () => {
         auth_socket.emit("receive", res_broadcast);
       } else if (type == "user") {
         // 单个发送消息
-        for (let j = 0; j < userIds.length; j++) {
-          let user_id_item = userIds[j];
-
+        userIds.forEach((user_id_item) => {
           pouchDB
             .find({
               selector: {
@@ -153,9 +151,7 @@ const startFn = async () => {
               },
             })
             .then((res) => {
-              for (let i = 0; i < res.docs.length; i++) {
-                const element = res.docs[i];
-
+              res.docs.forEach((element) => {
                 if (element) {
                   const res_user = formatData({
                     data: {
@@ -169,10 +165,11 @@ const startFn = async () => {
 
                   auth_socket.to(element.socket_id).emit("receive", res_user);
                 }
-              }
+              });
+
               console.log(res.docs, "对某个用户发信息 - 触发");
             });
-        }
+        });
       } else if (type == "room") {
         // console.log(type, roomNameArr, "房间发送消息");
 
@@ -224,9 +221,7 @@ const startFn = async () => {
     }
 
     // 加入房间
-    for (let j = 0; j < userIds.length; j++) {
-      let user_id = userIds[j];
-
+    userIds.forEach((user_id) => {
       // 保存用户和房间的关系
       pouchDB
         .find({
@@ -268,9 +263,7 @@ const startFn = async () => {
           },
         })
         .then((res) => {
-          for (let i = 0; i < res.docs.length; i++) {
-            const element = res.docs[i];
-
+          res.docs.forEach((element) => {
             console.log(element, "房间1");
             if (element) {
               console.log(element, roomName, type, "房间2");
@@ -282,11 +275,11 @@ const startFn = async () => {
                 auth_socket.in(element.socket_id).socketsLeave(roomName);
               }
             }
-          }
+          });
 
-          console.log(res.docs, "对某个用户发信息 - 触发");
+          console.log(res.docs, "房间2 - 触发");
         });
-    }
+    });
 
     res.send(formatData());
   });
